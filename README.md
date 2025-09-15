@@ -1,4 +1,4 @@
-## Wrapper around gRPC provides essentials
+## Wrapper around gRPC, provides essentials like:
 - Creating server more convenient way
 - Stop/Start async methods for more rich bootstrap and graceful shutdown
 - Creating client with defined proto
