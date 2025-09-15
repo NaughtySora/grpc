@@ -28,7 +28,7 @@
   }`
 
   /* define proto */
-  const proto = define([{ path: schema('path') },]);
+  const proto = define([{ path: schema('your path to user.proto') },]);
 
   /* 
     define proto implementation, 
@@ -100,7 +100,7 @@
 
   const CLIENT_SCHEMA_PATH = '';
   const PORT = 50052;
-  const proto = define([{ path: schema(CLIENT_SCHEMA_PATH) },]);
+  const proto = define([{ path: schema('your path to client.proto') },]);
 
   const api = {
     client: {
@@ -134,4 +134,47 @@
   call.write({ chunk: Buffer.from('2') });
   call.write({ chunk: Buffer.from('3') });
   call.end();
+```
+
+## Example Server streaming to Client
+
+```js
+  /*proto */
+  `syntax = "proto3";
+
+  message Data {
+    bytes message = 1;
+  }
+
+  message Upload {
+    uint32 id = 1;
+  }
+
+  service ServerService {
+    rpc messages(Upload) returns (stream Data);
+  }`
+  const PORT = 50053;
+  const proto = define([{ path: schema('your path to server.proto') },]);
+
+  const api = {
+    server: {
+      ServerService: {
+        messages(call) {
+          ["hi", "hello", "hey"]
+            .forEach(message => void call.write({ message: Buffer.from(message) }));
+          call.end();
+        }
+      },
+    },
+  };
+
+  const { start, stop } = server({ port: PORT });
+  await start(merge(proto, api));
+
+  const schemas = client({ port: PORT, proto, promisify: false });
+  const ClientService = schemas('server', 'ServerService');
+  const call = ClientService.messages({ id: 1 });
+  const chunks = [];
+  call.on("data", ({ message }) => chunks.push(message));
+  call.on("end", () => void console.log(Buffer.concat(chunks).toString()));
 ```

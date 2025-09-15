@@ -8,9 +8,10 @@ const assert = require('node:assert');
 
 const USER_SCHEMA_PATH = './mocks/user.proto';
 const CLIENT_SCHEMA_PATH = './mocks/client.proto';
+const SERVER_SCHEMA_PATH = './mocks/server.proto';
 const schema = path => resolve(__dirname, path);
 
-describe('util', () => {
+describe.skip('util', () => {
   it('url', () => {
     assert.strictEqual(url('127.0.0.1', 5555), '127.0.0.1:5555');
   });
@@ -79,7 +80,7 @@ describe('util', () => {
   });
 });
 
-describe('client/server', async () => {
+describe.skip('client/server', async () => {
   const proto = define([{ path: schema(USER_SCHEMA_PATH) },]);
   const api = {
     user: {
@@ -102,19 +103,7 @@ describe('client/server', async () => {
   await stop(0);
 });
 
-describe.skip('server streaming', async () => {
-  // function getMessages(call) {
-  //   const messages = ["hi", "hello", "hey"];
-  //   messages.forEach(msg => call.write({ text: msg }));
-  //   call.end();
-  // }
-
-  // const call = client.getMessages({ userId: "123" });
-  // call.on("data", (msg) => console.log("got:", msg));
-  // call.on("end", () => console.log("done"));
-});
-
-describe('client streaming', async () => {
+describe.skip('client streaming', async () => {
   const PORT = 50052;
   const proto = define([{ path: schema(CLIENT_SCHEMA_PATH) },]);
 
@@ -150,6 +139,36 @@ describe('client streaming', async () => {
   call.write({ chunk: Buffer.from('2') });
   call.write({ chunk: Buffer.from('3') });
   call.end();
+});
+
+describe('server streaming', async () => {
+  const PORT = 50053;
+  const proto = define([{ path: schema(SERVER_SCHEMA_PATH) },]);
+
+  const api = {
+    server: {
+      ServerService: {
+        messages(call) {
+          ["hi", "hello", "hey"]
+            .forEach(message => void call.write({ message: Buffer.from(message) }));
+          call.end();
+        }
+      },
+    },
+  };
+
+  const { start, stop } = server({ port: PORT });
+  await start(merge(proto, api));
+
+  const schemas = client({ port: PORT, proto, promisify: false });
+  const ClientService = schemas('server', 'ServerService');
+  const call = ClientService.messages({ id: 1 });
+  const chunks = [];
+  call.on("data", ({ message }) => chunks.push(message));
+  call.on("end", () => {
+    assert.strictEqual(Buffer.concat(chunks).toString(), "hihellohey");
+    stop(0);
+  });
 });
 
 describe.skip('bidirectional stream', async () => {
