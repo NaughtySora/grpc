@@ -9,10 +9,26 @@
 - Async/await client/server methods instead of errback (callback last error first)
 
 
-## Example 
+## Example - Client / Server communication
 ```js
+  /* proto */
+  `syntax = "proto3";
+  
+  message UserRequest {
+    string name = 1;
+    uint32 age = 2;
+  }
+
+  message UserResponse {
+    string content = 1;
+  }
+
+  service UserService {
+    rpc echo(UserRequest) returns (UserResponse);
+  }`
+
   /* define proto */
-  const proto = define([{ path: schema('./mocks/user.proto') },]);
+  const proto = define([{ path: schema('path') },]);
 
   /* 
     define proto implementation, 
@@ -58,4 +74,64 @@
   };
   process.on("SIGINT", exit.bind(null, 0));
   process.on("uncaughtException", exit.bind(null, 1));
+```
+
+
+## Example - Client streaming to server
+**here we need access to callback in server the method**
+**and 'call' stream as client so we don't use async/await here**
+
+```js
+  /* proto */
+  `syntax = "proto3";
+
+  message UserRequest {
+    string name = 1;
+    uint32 age = 2;
+  }
+
+  message UserResponse {
+    string content = 1;
+  }
+
+  service UserService {
+    rpc echo(UserRequest) returns (UserResponse);
+  }`
+
+  const CLIENT_SCHEMA_PATH = '';
+  const PORT = 50052;
+  const proto = define([{ path: schema(CLIENT_SCHEMA_PATH) },]);
+
+  const api = {
+    client: {
+      ClientService: {
+         /*we don't use callbackify api here*/
+        UploadData(call, callback) {
+          let count = 0;
+          let chunks = [];
+          call.on("data", ({ chunk }) => void (count++, chunks.push(chunk)));
+          call.on("end", () => {
+            callback(null, {
+              success: true,
+              message: `count: ${count} messages: ${Buffer.concat(chunks).toString()}`
+            });
+          });
+        }
+      },
+    },
+  };
+
+  const { start, stop } = server({ port: PORT });
+  await start(merge(proto, api));
+  /*promisify false to use old syntax for streams*/
+  const schemas = client({ port: PORT, proto, promisify: false });
+  const ClientService = schemas('client', 'ClientService');
+  const call = ClientService.UploadData((error, res) => {
+    if (error) console.error(res);
+    else console.log(res);
+  });
+  call.write({ chunk: Buffer.from('1') });
+  call.write({ chunk: Buffer.from('2') });
+  call.write({ chunk: Buffer.from('3') });
+  call.end();
 ```
