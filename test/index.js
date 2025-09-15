@@ -9,9 +9,11 @@ const assert = require('node:assert');
 const USER_SCHEMA_PATH = './mocks/user.proto';
 const CLIENT_SCHEMA_PATH = './mocks/client.proto';
 const SERVER_SCHEMA_PATH = './mocks/server.proto';
+const CHAT_SCHEMA_PATH = './mocks/chat.proto';
+
 const schema = path => resolve(__dirname, path);
 
-describe.skip('util', () => {
+describe('util', () => {
   it('url', () => {
     assert.strictEqual(url('127.0.0.1', 5555), '127.0.0.1:5555');
   });
@@ -80,7 +82,7 @@ describe.skip('util', () => {
   });
 });
 
-describe.skip('client/server', async () => {
+describe('client/server', async () => {
   const proto = define([{ path: schema(USER_SCHEMA_PATH) },]);
   const api = {
     user: {
@@ -103,7 +105,7 @@ describe.skip('client/server', async () => {
   await stop(0);
 });
 
-describe.skip('client streaming', async () => {
+describe('client streaming', async () => {
   const PORT = 50052;
   const proto = define([{ path: schema(CLIENT_SCHEMA_PATH) },]);
 
@@ -171,19 +173,42 @@ describe('server streaming', async () => {
   });
 });
 
-describe.skip('bidirectional stream', async () => {
-  // function chat(call) {
-  //   call.on("data", (msg) => {
-  //     console.log("got:", msg.text);
-  //     // echo back or broadcast
-  //     call.write({ text: `echo: ${msg.text}` });
-  //   });
-  //   call.on("end", () => call.end());
-  // }
+describe('bidirectional stream', async () => {
+  const PORT = 50054;
+  const proto = define([{ path: schema(CHAT_SCHEMA_PATH) },]);
 
-  // const call = client.chat();
-  // call.on("data", (msg) => console.log("server:", msg.text));
+  const api = {
+    chat: {
+      ChatService: {
+        echo(call) {
+          call.on("data", ({ message }) => {
+            call.write({ message: Buffer.from(`echo: ${message}`) });
+          });
+          call.on("end", () => call.end());
+        }
+      },
+    },
+  };
 
-  // call.write({ text: "hi server" });
-  // setTimeout(() => call.write({ text: "another msg" }), 1000);
+  const { start, stop } = server({ port: PORT });
+  await start(merge(proto, api));
+
+  const schemas = client({ port: PORT, proto, promisify: false });
+  const ChatService = schemas('chat', 'ChatService');
+  const call = ChatService.echo();
+  const messages = [];
+  call.on("data", ({ message }) => {
+    messages.push(message.toString());
+    if (messages.length === 2) {
+      assert.deepStrictEqual(messages, ["echo: message 0", "echo: message 1000"]);
+      call.end();
+    }
+  });
+  call.on('end', () => {
+    stop(0);
+  })
+  call.write({ message: Buffer.from("message 0") });
+  setTimeout(() => {
+    call.write({ message: Buffer.from("message 1000") });
+  }, 1000);
 });
