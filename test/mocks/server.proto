@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+message Data {
+  bytes message = 1;
+}
+
+message Upload {
+  uint32 id = 1;
+}
+
+service ServerService {
+  rpc messages(Upload) returns (stream Data);
+}

@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+message DataChunk {
+  bytes chunk = 1;
+}
+
+message UploadStatus {
+  bool success = 1;
+  string message = 2;
+}
+
+service ClientService {
+  rpc UploadData(stream DataChunk) returns (UploadStatus);
+}
