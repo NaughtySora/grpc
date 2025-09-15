@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+message UserRequest {
+  string name = 1;
+  uint32 age = 2;
+}
+
+message UserResponse {
+  string content = 1;
+}
+
+service UserService {
+  rpc echo(UserRequest) returns (UserResponse);
+}
